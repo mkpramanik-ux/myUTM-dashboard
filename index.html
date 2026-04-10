@@ -1,0 +1,89 @@
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>My---CameraTest---Page</title>
+	<style>
+                
+        body {font-family: Arial; background-color: #f0f8ff; text-align: center; } /* body style =======================================================*/
+        .header { background-color: #007BFF;color: yellow; padding: 20px; border-radius: 10px; margin-bottom: 10px; }/* Header =======================================================*/
+        section {margin: 20px; padding:40px;  width: 100%; max-width: 500px; border-radius: 10px; background-color: white; box-shadow: 0 0 10px rgba(0,0,0,0.1);}        /* Section styling ================================================= */
+        button { padding: 10px 20px; font-size: 18px; margin: 10px; border-radius: 8px; border: none; cursor: pointer; }        /* Button style  (common) ======================================*/
+	h1 {color: red;}		
+	h2 { border-bottom  : 2px solid #e0e0e0; color: blue;}
+        img {display: block; margin-bottom: 30px; width: 100px;}
+	iframe {width: 300px; height: 200px;}
+	p {color: blue;}
+	</style>
+    </head>
+    <body>
+<!-- 🔹 DIV: Layout container =same atrbte in different location==========-->
+       <div class="header">
+              <h1>This is my HTML page for camera testing</h1>
+       </div>
+
+
+<!-- 🔹 SECTION: Buttons for Camera control ==============================================-->
+    <section>
+        <h2 >Camera Control</h2>
+        <button style="background-color: green; color: white" onclick="startCamera()">Start Camera</button>  
+        <button style="background-color: green; color: white" onclick="stopCamera()">Stop Camera</button>   
+        
+        <p      id="statusText" >Camera STATUS here (Initial TxT) </p>
+        <iframe id="cameraFrame"></iframe>
+     </section>   
+
+    <!-- ============================================================ -->
+    <!-- SECTION 2 — Motion Control                                    -->
+    <!-- ============================================================ -->
+    <section>
+        <h2>⚙️ Motion Control</h2>
+        <!-- Each button sends a single character command via WebSocket -->
+        <button style="background-color: green; color: white"  onclick="sendCmd('f')">FORWARD</button>
+        <button style="background-color: green; color: white"  onclick="sendCmd('b')">BACKWARD</button>
+        <br>
+        <button style="background-color: red; color: white"  onclick="sendCmd('t')">STOP</button>
+        <button style="background-color: orange; color: white"  onclick="sendCmd('p')">PAUSE / PLAY</button>
+    
+	<p id="mqttStatus">MQTT: Connecting...</p>  
+  </section>
+
+
+					<!-- 🔥 MQTT LIBRARY -->
+		<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+          <script> 					// 🔹 MQTT CONNECTION
+		const client = mqtt.connect("wss://test.mosquitto.org:8081");
+
+		client.on("connect", function () {
+		    console.log("MQTT Connected");
+		    document.getElementById("mqttStatus").innerText = "MQTT: Connected ✅";});
+
+		client.on("error", function () {
+		    document.getElementById("mqttStatus").innerText = "MQTT: Error ❌";});	
+
+					// 🔹 SEND COMMAND FUNCTION
+		function sendCmd(cmd) {
+		    if (client.connected) {
+		        client.publish("utm/cmd", cmd);
+		        console.log("Sent: " + cmd);
+		    } else {
+		        alert("MQTT not connected!");
+		    }
+		}
+
+      
+              // 🔹 CAMERA FUNCTIONS
+                function startCamera() {
+                   document.getElementById("cameraFrame").src = "http://192.168.68.100";
+                   document.getElementById("statusText").innerText = "Camera Started";}
+
+                function stopCamera() {
+                   document.getElementById("cameraFrame").src = "";
+                   document.getElementById("statusText").innerText = "Camera Stopped";}
+
+        </script>
+    </body>
+
+</html>
