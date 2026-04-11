@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>My---CameraTest---Page</title>
+        <style>
+                
+        body     { font-family: Arial; background-color: #f0f8ff; text-align: center; }
+        .header  { background-color: #007BFF; color: yellow; padding: 20px; border-radius: 10px; margin-bottom: 10px; }
+        section  { margin: 20px; padding: 40px; width: 100%; max-width: 500px; border-radius: 10px; background-color: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        button   { padding: 10px 20px; font-size: 18px; margin: 10px; border-radius: 8px; border: none; cursor: pointer; }
+        h1       { color: red; }
+        h2       { border-bottom: 2px solid #e0e0e0; color: blue; }
+        p        { color: blue; }
+
+        /* ── camera image size ── */
+        #cameraFrame { width: 300px; height: 200px; display: block; margin: 10px auto; }
+
+        </style>
+    </head>
+    <body>
+
+<!-- 🔹 HEADER ============================================================-->
+        <div class="header">
+            <h1>This is my HTML page for camera testing</h1>
+        </div>
+
+<!-- 🔹 SECTION 1 — Camera Control ========================================-->
+        <section>
+            <h2>Camera Control</h2>
+
+            <button style="background-color: green; color: white"  onclick="startCamera()">Start Camera</button>
+            <button style="background-color: red;   color: white"  onclick="stopCamera()"> Stop Camera </button>
+
+            <p id="statusText">Camera STATUS here (Initial TxT)</p>
+
+            <!-- ✅ CHANGED: iframe → img  (iframe cannot show snapshot stream) -->
+            <img id="cameraFrame">
+
+        </section>
+
+<!-- 🔹 SECTION 2 — Motion Control ========================================-->
+        <section>
+            <h2>⚙️ Motion Control</h2>
+
+            <button style="background-color: green;  color: white" onclick="sendCmd('f')">FORWARD</button>
+            <button style="background-color: green;  color: white" onclick="sendCmd('b')">BACKWARD</button>
+            <br>
+            <button style="background-color: red;    color: white" onclick="sendCmd('t')">STOP</button>
+            <button style="background-color: orange; color: white" onclick="sendCmd('p')">PAUSE / PLAY</button>
+
+            <p id="mqttStatus">MQTT: Connecting...</p>
+        </section>
+
+<!-- 🔥 MQTT LIBRARY ======================================================-->
+        <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+        <script>
+
+            // 🔹 MQTT CONNECTION — unchanged
+            const client = mqtt.connect("wss://test.mosquitto.org:8081");
+
+            client.on("connect", function() {
+                console.log("MQTT Connected");
+                document.getElementById("mqttStatus").innerText = "MQTT: Connected ✅";
+            });
+
+            client.on("error", function() {
+                document.getElementById("mqttStatus").innerText = "MQTT: Error ❌";
+            });
+
+            // 🔹 SEND COMMAND — unchanged
+            function sendCmd(cmd) {
+                if (client.connected) {
+                    client.publish("utm/cmd", cmd);
+                    console.log("Sent: " + cmd);
+                } else {
+                    alert("MQTT not connected!");
+                }
+            }
+
+            // 🔹 CAMERA SETUP
+            // ✅ CHANGED: use Cloudflare /capture URL with snapshot refresh
+            // Use local IP below if testing inside WiFi only
+            var cameraURL  = "https://marine-hills-cdna-personality.trycloudflare.com/capture";
+            // var cameraURL = "http://192.168.68.100/capture";   // ← local WiFi only
+
+            var cameraTimer = null;     // null = camera stopped
+
+            // 🔹 START CAMERA — ✅ CHANGED
+            function startCamera() {
+                if (cameraTimer) return;    // already running — ignore extra clicks
+
+                document.getElementById("statusText").innerText   = "Camera Running ✅";
+                document.getElementById("statusText").style.color = "green";
+
+                // fetch new snapshot every 300ms — looks like live video
+                cameraTimer = setInterval(function() {
+                    document.getElementById("cameraFrame").src = cameraURL + "?t=" + Date.now();
+                    //                                                         ↑
+                    //                        ?t=123456 forces browser to fetch fresh image
+                    //                        without it browser shows cached (frozen) image
+                }, 300);
+            }
+
+            // 🔹 STOP CAMERA — ✅ CHANGED
+            function stopCamera() {
+                clearInterval(cameraTimer);                         // stop the snapshot loop
+                cameraTimer = null;                                 // allow startCamera again
+                document.getElementById("cameraFrame").src        = "";
+                document.getElementById("statusText").innerText   = "Camera Stopped";
+                document.getElementById("statusText").style.color = "blue";
+            }
+
+        </script>
+    </body>
+</html>
