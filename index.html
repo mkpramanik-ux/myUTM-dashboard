@@ -1,89 +1,567 @@
-
 <!DOCTYPE html>
-<html>
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>My---CameraTest---Page</title>
-	<style>
-                
-        body {font-family: Arial; background-color: #f0f8ff; text-align: center; } /* body style =======================================================*/
-        .header { background-color: #007BFF;color: yellow; padding: 20px; border-radius: 10px; margin-bottom: 10px; }/* Header =======================================================*/
-        section {margin: 20px; padding:40px;  width: 100%; max-width: 500px; border-radius: 10px; background-color: white; box-shadow: 0 0 10px rgba(0,0,0,0.1);}        /* Section styling ================================================= */
-        button { padding: 10px 20px; font-size: 18px; margin: 10px; border-radius: 8px; border: none; cursor: pointer; }        /* Button style  (common) ======================================*/
-	h1 {color: red;}		
-	h2 { border-bottom  : 2px solid #e0e0e0; color: blue;}
-        img {display: block; margin-bottom: 30px; width: 100px;}
-	iframe {width: 300px; height: 200px;}
-	p {color: blue;}
-	</style>
-    </head>
-    <body>
-<!-- 🔹 DIV: Layout container =same atrbte in different location==========-->
-       <div class="header">
-              <h1>This is my HTML (UTM-Dashboard) hosted in GitHub</h1>
-       </div>
+<html lang="en">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>myUTM Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #0a0e1a;
+      --panel:     #111827;
+      --border:    #1e3a5f;
+      --accent:    #00d4ff;
+      --accent2:   #ff6b35;
+      --green:     #00ff88;
+      --red:       #ff3b3b;
+      --yellow:    #ffd60a;
+      --text:      #c9d6e3;
+      --dim:       #4a6080;
+      --mono:      'Share Tech Mono', monospace;
+      --sans:      'Exo 2', sans-serif;
+    }
 
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
-<!-- 🔹 SECTION: Buttons for Camera control ==============================================-->
-    <section>
-        <h2 >Camera Control from GitHub</h2>
-        <button style="background-color: green; color: white" onclick="startCamera()">Start Camera</button>  
-        <button style="background-color: green; color: white" onclick="stopCamera()">Stop Camera</button>   
-        
-        <p      id="statusText" >Camera STATUS here (Initial TxT) </p>
-        <iframe id="cameraFrame"></iframe>
-     </section>   
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse at 20% 0%, #001a3360 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 100%, #002a1a40 0%, transparent 60%);
+    }
 
-    <!-- ============================================================ -->
-    <!-- SECTION 2 — Motion Control                                    -->
-    <!-- ============================================================ -->
-    <section>
-        <h2>⚙️ Motion Control from GitHub</h2>
-        <!-- Each button sends a single character command via WebSocket -->
-        <button style="background-color: green; color: white"  onclick="sendCmd('f')">FORWARD</button>
-        <button style="background-color: green; color: white"  onclick="sendCmd('b')">BACKWARD</button>
-        <br>
-        <button style="background-color: red; color: white"  onclick="sendCmd('t')">STOP</button>
-        <button style="background-color: orange; color: white"  onclick="sendCmd('p')">PAUSE / PLAY</button>
-    
-	<p id="mqttStatus">MQTT: Connecting...</p>  
-  </section>
+    /* ── HEADER ───────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 28px;
+      background: linear-gradient(90deg, #001428, #0a1e30);
+      border-bottom: 1px solid var(--border);
+    }
+    .logo {
+      font-family: var(--mono);
+      font-size: 1.1rem;
+      color: var(--accent);
+      letter-spacing: 2px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .logo-dot { width:10px; height:10px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
+    .header-right { display:flex; align-items:center; gap:16px; }
+    .badge {
+      font-family: var(--mono);
+      font-size: .72rem;
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: 1px solid;
+      letter-spacing: 1px;
+    }
+    .badge-mqtt  { color:var(--yellow); border-color:var(--yellow); }
+    .badge-cam   { color:var(--accent); border-color:var(--accent); }
 
-					<!-- 🔥 MQTT LIBRARY -->
-		<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    /* ── MAIN GRID ────────────────────────────────── */
+    main {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 18px;
+      padding: 20px 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    @media(max-width:720px){ main{ grid-template-columns:1fr; } }
 
-          <script> 					// 🔹 MQTT CONNECTION
-		const client = mqtt.connect("wss://test.mosquitto.org:8081");
+    /* ── PANEL ────────────────────────────────────── */
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: .8rem;
+      color: var(--accent);
+      letter-spacing: 2px;
+      display:flex; align-items:center; gap:8px;
+    }
+    .panel-header .icon { font-size: 1rem; }
+    .panel-body { padding: 18px; }
 
-		client.on("connect", function () {
-		    console.log("MQTT Connected");
-		    document.getElementById("mqttStatus").innerText = "MQTT: Connected ✅";});
+    /* ── CAMERA PANEL ─────────────────────────────── */
+    .cam-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4/3;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    #camImg {
+      width:100%; height:100%;
+      object-fit: cover;
+      display: block;
+    }
+    .cam-overlay {
+      position:absolute; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      flex-direction:column; gap:8px;
+      background:#000c;
+      transition: opacity .3s;
+    }
+    .cam-overlay.hidden { opacity:0; pointer-events:none; }
+    .cam-overlay p { font-family:var(--mono); font-size:.8rem; color:var(--dim); }
 
-		client.on("error", function () {
-		    document.getElementById("mqttStatus").innerText = "MQTT: Error ❌";});	
+    /* corner decorations */
+    .cam-wrap::before, .cam-wrap::after,
+    .corner-br, .corner-bl {
+      content:''; position:absolute;
+      width:16px; height:16px;
+      border-color:var(--accent);
+      border-style:solid;
+      z-index:2;
+      pointer-events:none;
+    }
+    .cam-wrap::before { top:8px; left:8px; border-width:2px 0 0 2px; }
+    .cam-wrap::after  { top:8px; right:8px; border-width:2px 2px 0 0; }
+    .corner-br { bottom:8px; right:8px; border-width:0 2px 2px 0; }
+    .corner-bl { bottom:8px; left:8px;  border-width:0 0 2px 2px; }
 
-					// 🔹 SEND COMMAND FUNCTION
-		function sendCmd(cmd) {
-		    if (client.connected) {
-		        client.publish("utm/cmd", cmd);
-		        console.log("Sent: " + cmd);
-		    } else {
-		        alert("MQTT not connected!");
-		    }
-		}
+    /* live badge */
+    .live-badge {
+      position:absolute; top:12px; left:50%; transform:translateX(-50%);
+      font-family:var(--mono); font-size:.65rem;
+      background:#ff000033; border:1px solid #ff3b3b;
+      color:#ff3b3b; padding:2px 8px; border-radius:3px;
+      letter-spacing:2px; z-index:3;
+      display:none;
+    }
+    .live-badge.show { display:block; animation: pulse 1.2s infinite; }
 
-      
-              // 🔹 CAMERA FUNCTIONS
-                function startCamera() {
-                   document.getElementById("cameraFrame").src = "http://192.168.68.100";
-                   document.getElementById("statusText").innerText = "Camera Started";}
+    /* fps counter */
+    .cam-stats {
+      margin-top:10px;
+      display:flex; gap:16px;
+      font-family:var(--mono); font-size:.72rem; color:var(--dim);
+    }
+    .cam-stats span { color:var(--accent); }
 
-                function stopCamera() {
-                   document.getElementById("cameraFrame").src = "";
-                   document.getElementById("statusText").innerText = "Camera Stopped";}
+    /* cam buttons */
+    .cam-btns { display:flex; gap:10px; margin-top:14px; }
+    .btn {
+      flex:1; padding:10px;
+      font-family:var(--mono); font-size:.8rem;
+      border:1px solid; border-radius:6px;
+      cursor:pointer; transition: all .2s;
+      background:transparent; letter-spacing:1px;
+    }
+    .btn:hover { filter:brightness(1.3); }
+    .btn-start { color:var(--green); border-color:var(--green); }
+    .btn-start:hover { background:#00ff8815; }
+    .btn-stop  { color:var(--red);   border-color:var(--red);   }
+    .btn-stop:hover  { background:#ff3b3b15; }
+    .btn-snap  { color:var(--accent);border-color:var(--accent); }
+    .btn-snap:hover  { background:#00d4ff15; }
 
-        </script>
-    </body>
+    /* interval slider */
+    .slider-row {
+      display:flex; align-items:center; gap:10px;
+      margin-top:12px;
+      font-family:var(--mono); font-size:.72rem; color:var(--dim);
+    }
+    input[type=range] {
+      flex:1; accent-color:var(--accent);
+    }
 
+    /* ── MOTION CONTROL ───────────────────────────── */
+    .motion-grid {
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:8px;
+      margin-top:4px;
+    }
+    .mbtn {
+      padding:14px 6px;
+      font-family:var(--mono); font-size:.75rem;
+      border:1px solid var(--border);
+      border-radius:8px;
+      cursor:pointer;
+      background:#ffffff08;
+      color:var(--text);
+      transition:all .15s;
+      letter-spacing:1px;
+      text-align:center;
+    }
+    .mbtn:active { transform:scale(.95); }
+    .mbtn.up    { grid-column:2; color:var(--green); border-color:var(--green); }
+    .mbtn.down  { grid-column:2; color:var(--green); border-color:var(--green); }
+    .mbtn.left  { color:var(--accent); border-color:var(--accent); }
+    .mbtn.right { color:var(--accent); border-color:var(--accent); }
+    .mbtn.stop  { grid-column:2; color:var(--red); border-color:var(--red); font-size:1rem; }
+    .mbtn.pause { color:var(--yellow); border-color:var(--yellow); }
+    .mbtn:hover { filter:brightness(1.4); background:#ffffff12; }
+
+    /* ── LOG ──────────────────────────────────────── */
+    .log-box {
+      background:#060c14;
+      border:1px solid var(--border);
+      border-radius:6px;
+      padding:10px;
+      height:110px;
+      overflow-y:auto;
+      font-family:var(--mono);
+      font-size:.7rem;
+      line-height:1.7;
+    }
+    .log-box .log-line { color:var(--dim); }
+    .log-box .log-line.ok  { color:var(--green); }
+    .log-box .log-line.err { color:var(--red); }
+    .log-box .log-line.cmd { color:var(--accent); }
+
+    /* ── CONFIG ───────────────────────────────────── */
+    .config-row {
+      display:flex; align-items:center; gap:8px;
+      margin-bottom:10px;
+    }
+    .config-row label {
+      font-family:var(--mono); font-size:.7rem;
+      color:var(--dim); width:60px; flex-shrink:0;
+    }
+    .config-row input {
+      flex:1; background:#060c14;
+      border:1px solid var(--border);
+      border-radius:4px;
+      padding:6px 8px;
+      color:var(--accent);
+      font-family:var(--mono);
+      font-size:.75rem;
+      outline:none;
+    }
+    .config-row input:focus { border-color:var(--accent); }
+    .btn-apply {
+      width:100%; margin-top:4px;
+      padding:8px;
+      font-family:var(--mono); font-size:.75rem;
+      background:transparent;
+      border:1px solid var(--accent);
+      color:var(--accent);
+      border-radius:6px;
+      cursor:pointer; letter-spacing:1px;
+      transition:all .2s;
+    }
+    .btn-apply:hover { background:#00d4ff18; }
+
+    /* ── STATUS BAR ───────────────────────────────── */
+    footer {
+      text-align:center;
+      padding:10px;
+      font-family:var(--mono);
+      font-size:.68rem;
+      color:var(--dim);
+      border-top:1px solid var(--border);
+      margin-top:4px;
+    }
+    footer span { color:var(--accent); }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ──────────────────────────────────────── -->
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    myUTM — DASHBOARD
+  </div>
+  <div class="header-right">
+    <div class="badge badge-mqtt" id="mqttBadge">MQTT ···</div>
+    <div class="badge badge-cam"  id="camBadge" >CAM OFF</div>
+  </div>
+</header>
+
+<!-- ── MAIN ────────────────────────────────────────── -->
+<main>
+
+  <!-- LEFT: Camera + Config -->
+  <div style="display:flex; flex-direction:column; gap:18px;">
+
+    <!-- Camera Panel -->
+    <div class="panel">
+      <div class="panel-header"><span class="icon">📷</span> LIVE CAMERA FEED</div>
+      <div class="panel-body">
+
+        <!-- Config row (URL) -->
+        <div class="config-row" style="margin-bottom:14px;">
+          <label>CAM URL</label>
+          <input type="text" id="cfUrl"
+            placeholder="https://your-tunnel.trycloudflare.com"
+            value="">
+          <button class="btn-apply" style="width:auto;padding:6px 12px;" onclick="applyUrl()">SET</button>
+        </div>
+
+        <!-- Video -->
+        <div class="cam-wrap">
+          <div class="corner-br"></div>
+          <div class="corner-bl"></div>
+          <div class="live-badge" id="liveBadge">● LIVE</div>
+          <img id="camImg" alt="camera feed">
+          <div class="cam-overlay" id="camOverlay">
+            <p>[ CAMERA OFFLINE ]</p>
+            <p>Enter your Cloudflare URL and press START</p>
+          </div>
+        </div>
+
+        <div class="cam-stats">
+          REFRESH: <span id="fpsDisplay">—</span>ms &nbsp;|&nbsp;
+          FRAMES: <span id="frameCount">0</span> &nbsp;|&nbsp;
+          STATUS: <span id="camStatus">IDLE</span>
+        </div>
+
+        <div class="cam-btns">
+          <button class="btn btn-start" onclick="startCamera()">▶ START</button>
+          <button class="btn btn-stop"  onclick="stopCamera()">■ STOP</button>
+          <button class="btn btn-snap"  onclick="snapPhoto()">📷 SNAP</button>
+        </div>
+
+        <div class="slider-row">
+          INTERVAL:
+          <input type="range" id="intervalSlider" min="100" max="2000" step="100" value="400"
+            oninput="updateInterval(this.value)">
+          <span id="intervalVal">400ms</span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Log Panel -->
+    <div class="panel">
+      <div class="panel-header"><span class="icon">📋</span> SYSTEM LOG</div>
+      <div class="panel-body">
+        <div class="log-box" id="logBox"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: Controls -->
+  <div style="display:flex; flex-direction:column; gap:18px;">
+
+    <!-- Motion Control -->
+    <div class="panel">
+      <div class="panel-header"><span class="icon">🎮</span> MOTION CONTROL</div>
+      <div class="panel-body">
+        <div class="motion-grid">
+          <div></div>
+          <button class="mbtn up"    onclick="sendCmd('f')">▲<br>FWD</button>
+          <div></div>
+          <button class="mbtn left"  onclick="sendCmd('l')">◄<br>LEFT</button>
+          <button class="mbtn stop"  onclick="sendCmd('t')">⏹</button>
+          <button class="mbtn right" onclick="sendCmd('r')">►<br>RIGHT</button>
+          <div></div>
+          <button class="mbtn down"  onclick="sendCmd('b')">▼<br>BWD</button>
+          <div></div>
+        </div>
+        <div style="margin-top:12px; display:flex; gap:8px;">
+          <button class="mbtn pause" style="flex:1" onclick="sendCmd('p')">⏸ PAUSE / PLAY</button>
+        </div>
+        <p id="mqttStatus" style="margin-top:12px; font-family:var(--mono); font-size:.72rem; color:var(--dim); text-align:center;">
+          MQTT: Connecting...
+        </p>
+      </div>
+    </div>
+
+    <!-- MQTT Config -->
+    <div class="panel">
+      <div class="panel-header"><span class="icon">⚙️</span> MQTT CONFIG</div>
+      <div class="panel-body">
+        <div class="config-row">
+          <label>BROKER</label>
+          <input type="text" id="mqttBroker" value="wss://test.mosquitto.org:8081">
+        </div>
+        <div class="config-row">
+          <label>TOPIC</label>
+          <input type="text" id="mqttTopic" value="utm/cmd">
+        </div>
+        <button class="btn-apply" onclick="reconnectMQTT()">⟳ RECONNECT</button>
+      </div>
+    </div>
+
+    <!-- Quick Status -->
+    <div class="panel">
+      <div class="panel-header"><span class="icon">📡</span> SYSTEM STATUS</div>
+      <div class="panel-body" style="font-family:var(--mono); font-size:.72rem; line-height:2;">
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--dim)">DASHBOARD</span>
+          <span style="color:var(--green)">● ONLINE</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--dim)">MQTT</span>
+          <span id="mqttDot" style="color:var(--dim)">○ ---</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--dim)">CAMERA</span>
+          <span id="camDot"  style="color:var(--dim)">○ OFF</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--dim)">STREAM MODE</span>
+          <span style="color:var(--accent)">SNAPSHOT</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer>myUTM-dashboard &nbsp;|&nbsp; MQTT: <span>test.mosquitto.org</span> &nbsp;|&nbsp; MODE: <span>SNAPSHOT POLLING</span></footer>
+
+<!-- ── SCRIPTS ──────────────────────────────────────── -->
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script>
+
+  // ── CONFIG ──────────────────────────────────────────
+  let CF_URL   = "";          // Cloudflare tunnel base URL (set by user)
+  let INTERVAL = 400;         // ms between snapshot refreshes
+  let TOPIC    = "utm/cmd";
+  let frames   = 0;
+  let camTimer = null;
+  let mqttClient = null;
+
+  // ── LOGGING ─────────────────────────────────────────
+  function log(msg, type="") {
+    const box  = document.getElementById("logBox");
+    const time = new Date().toLocaleTimeString();
+    const line = document.createElement("div");
+    line.className = "log-line " + type;
+    line.textContent = `[${time}] ${msg}`;
+    box.appendChild(line);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  // ── URL CONFIG ───────────────────────────────────────
+  function applyUrl() {
+    CF_URL = document.getElementById("cfUrl").value.trim().replace(/\/$/, "");
+    log("CAM URL set → " + CF_URL, "ok");
+  }
+
+  // ── CAMERA ──────────────────────────────────────────
+  function startCamera() {
+    if (!CF_URL) {
+      alert("Please enter your Cloudflare URL first and click SET.");
+      return;
+    }
+    if (camTimer) clearInterval(camTimer);
+    frames = 0;
+    document.getElementById("camOverlay").classList.add("hidden");
+    document.getElementById("liveBadge").classList.add("show");
+    document.getElementById("camBadge").textContent = "CAM ON";
+    document.getElementById("camDot").style.color = "var(--green)";
+    document.getElementById("camDot").textContent  = "● LIVE";
+    document.getElementById("camStatus").textContent = "STREAMING";
+
+    fetchSnap(); // immediate first frame
+    camTimer = setInterval(fetchSnap, INTERVAL);
+    log("Camera started — snapshot mode @ " + INTERVAL + "ms", "ok");
+  }
+
+  function fetchSnap() {
+    const url = CF_URL + "/capture?t=" + Date.now();
+    const img  = document.getElementById("camImg");
+    const tmp  = new Image();
+    tmp.onload = () => {
+      img.src = tmp.src;
+      frames++;
+      document.getElementById("frameCount").textContent = frames;
+      document.getElementById("fpsDisplay").textContent = INTERVAL;
+    };
+    tmp.onerror = () => {
+      document.getElementById("camStatus").textContent = "ERROR";
+      log("Snapshot fetch failed — check URL", "err");
+    };
+    tmp.src = url;
+  }
+
+  function stopCamera() {
+    if (camTimer) { clearInterval(camTimer); camTimer = null; }
+    document.getElementById("camOverlay").classList.remove("hidden");
+    document.getElementById("liveBadge").classList.remove("show");
+    document.getElementById("camBadge").textContent  = "CAM OFF";
+    document.getElementById("camDot").style.color = "var(--dim)";
+    document.getElementById("camDot").textContent  = "○ OFF";
+    document.getElementById("camStatus").textContent = "IDLE";
+    log("Camera stopped", "err");
+  }
+
+  function snapPhoto() {
+    if (!CF_URL) { alert("Set the Cloudflare URL first."); return; }
+    const a   = document.createElement("a");
+    a.href    = CF_URL + "/capture?t=" + Date.now();
+    a.download = "utm-snap-" + Date.now() + ".jpg";
+    a.click();
+    log("Snapshot saved", "ok");
+  }
+
+  function updateInterval(val) {
+    INTERVAL = parseInt(val);
+    document.getElementById("intervalVal").textContent = val + "ms";
+    if (camTimer) { stopCamera(); startCamera(); }
+  }
+
+  // ── MQTT ────────────────────────────────────────────
+  function connectMQTT(broker) {
+    if (mqttClient) mqttClient.end(true);
+    log("Connecting MQTT → " + broker);
+
+    mqttClient = mqtt.connect(broker);
+
+    mqttClient.on("connect", () => {
+      log("MQTT connected ✅", "ok");
+      document.getElementById("mqttStatus").textContent = "MQTT: Connected ✅";
+      document.getElementById("mqttBadge").textContent  = "MQTT ✅";
+      document.getElementById("mqttDot").style.color    = "var(--green)";
+      document.getElementById("mqttDot").textContent    = "● ONLINE";
+    });
+
+    mqttClient.on("error", (e) => {
+      log("MQTT error: " + e.message, "err");
+      document.getElementById("mqttStatus").textContent = "MQTT: Error ❌";
+      document.getElementById("mqttBadge").textContent  = "MQTT ❌";
+      document.getElementById("mqttDot").style.color    = "var(--red)";
+      document.getElementById("mqttDot").textContent    = "● ERROR";
+    });
+
+    mqttClient.on("close", () => {
+      document.getElementById("mqttDot").textContent = "○ OFFLINE";
+    });
+  }
+
+  function reconnectMQTT() {
+    const broker = document.getElementById("mqttBroker").value.trim();
+    TOPIC        = document.getElementById("mqttTopic").value.trim();
+    log("Reconnecting to " + broker, "cmd");
+    connectMQTT(broker);
+  }
+
+  function sendCmd(cmd) {
+    if (mqttClient && mqttClient.connected) {
+      mqttClient.publish(TOPIC, cmd);
+      const labels = { f:"FORWARD", b:"BACKWARD", l:"LEFT", r:"RIGHT", t:"STOP", p:"PAUSE/PLAY" };
+      log("CMD sent → " + (labels[cmd] || cmd), "cmd");
+    } else {
+      alert("MQTT not connected!");
+      log("CMD failed — MQTT offline", "err");
+    }
+  }
+
+  // ── INIT ─────────────────────────────────────────────
+  connectMQTT("wss://test.mosquitto.org:8081");
+  log("myUTM Dashboard initialized", "ok");
+  log("Enter your Cloudflare tunnel URL above and click SET", "");
+
+</script>
+</body>
 </html>
